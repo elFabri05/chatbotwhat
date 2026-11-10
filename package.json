@@ -1,0 +1,18 @@
+{
+  "name": "chatbotwhat",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "WhatsApp customer-support chatbot for an ISP (Meta Cloud API)",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0"
+  }
+}

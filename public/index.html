@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ISP support bot – test page</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #1f2933; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.1rem; margin-top: 2rem; }
+    .table-wrap { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.45rem 0.6rem; border-bottom: 1px solid #d9e0e6; white-space: nowrap; }
+    .badge { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.8rem; }
+    .online, .up_to_date { background: #d5f2dd; color: #0c5c26; }
+    .degraded { background: #fdeebf; color: #734c00; }
+    .offline, .overdue { background: #fbd9d6; color: #8c1d18; }
+    #chat { border: 1px solid #d9e0e6; border-radius: 8px; height: 320px; overflow-y: auto; padding: 0.75rem; background: #efeae2; display: flex; flex-direction: column; gap: 0.4rem; }
+    .msg { max-width: 75%; padding: 0.45rem 0.7rem; border-radius: 8px; white-space: pre-wrap; font-size: 0.9rem; }
+    .me { align-self: flex-end; background: #d9fdd3; }
+    .bot { align-self: flex-start; background: #fff; }
+    form { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    select, input, button { font: inherit; padding: 0.45rem 0.6rem; }
+    select { margin-bottom: 0.5rem; max-width: 100%; }
+    input { flex: 1; min-width: 0; }
+  </style>
+</head>
+<body>
+  <h1>ISP support bot – test page</h1>
+  <p>Fake customers and a chat box that runs the same bot logic as WhatsApp, without sending anything to Meta.</p>
+
+  <h2>Customers</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Name</th><th>Phone</th><th>Plan</th><th>Connection</th><th>Payment</th><th>Due</th></tr>
+      </thead>
+      <tbody id="customers"></tbody>
+    </table>
+  </div>
+
+  <h2>Test chat</h2>
+  <label for="who">Send as:</label>
+  <select id="who"></select>
+  <div id="chat"></div>
+  <form id="form">
+    <input id="text" placeholder="Type a message (try: hola, 1, 2, 3)" autocomplete="off" required>
+    <button>Send</button>
+  </form>
+
+  <script>
+    const who = document.getElementById("who");
+    const chat = document.getElementById("chat");
+    const textInput = document.getElementById("text");
+
+    // Small helper that builds an element with text (textContent = no HTML injection).
+    function el(tag, text, className) {
+      const node = document.createElement(tag);
+      node.textContent = text;
+      if (className) node.className = className;
+      return node;
+    }
+
+    function addMessage(text, className) {
+      chat.append(el("div", text, "msg " + className));
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    async function loadCustomers() {
+      const customers = await (await fetch("/customers")).json();
+      const tbody = document.getElementById("customers");
+
+      for (const c of customers) {
+        const row = document.createElement("tr");
+        row.append(el("td", c.id), el("td", c.name), el("td", c.phone), el("td", c.plan));
+
+        const connection = document.createElement("td");
+        connection.append(el("span", c.connectionStatus, "badge " + c.connectionStatus));
+        const payment = document.createElement("td");
+        payment.append(el("span", c.paymentStatus, "badge " + c.paymentStatus));
+        const due = c.amountDue > 0 ? `$${c.amountDue} (${c.dueDate})` : c.dueDate;
+
+        row.append(connection, payment, el("td", due));
+        tbody.append(row);
+
+        who.append(new Option(`${c.id} – ${c.name}`, c.phone));
+      }
+      // A phone that is not in the database, to try the "send me your ID" flow.
+      who.append(new Option("Unknown number (bot asks for customer ID)", "5490000000000"));
+    }
+
+    document.getElementById("form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const text = textInput.value.trim();
+      if (!text) return;
+      textInput.value = "";
+      addMessage(text, "me");
+
+      try {
+        const response = await fetch("/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone: who.value, text }),
+        });
+        const data = await response.json();
+        addMessage(data.reply || "Error: " + data.error, "bot");
+      } catch (err) {
+        addMessage("Request failed: " + err.message, "bot");
+      }
+    });
+
+    // Switching customer starts a fresh conversation on screen.
+    who.addEventListener("change", () => chat.replaceChildren());
+
+    loadCustomers();
+  </script>
+</body>
+</html>
